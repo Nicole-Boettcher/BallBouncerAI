@@ -193,7 +193,6 @@ def board_movement(board):
 def eval_genomes(genomes, config):
     global generation
     generation += 1
-    print("GENERATION: ", generation)
     clock = pygame.time.Clock()
 
     nets = []
