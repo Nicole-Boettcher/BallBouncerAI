@@ -13,8 +13,9 @@ from os.path import isfile, join
 pygame.font.init()  # init font
 
 generation = 0
-BIG_FONT = pygame.font.SysFont("comicsans", 30)
-SMALL_FONT = pygame.font.SysFont("comicsans", 10)
+opening_screen = True
+BIG_FONT = pygame.font.SysFont("comicsans", 40)
+SMALL_FONT = pygame.font.SysFont("comicsans", 15)
 BG_COLOR = pygame.Color(80, 60, 70)
 
 WIDTH, HEIGHT = 900, 700
@@ -26,6 +27,20 @@ FPS = 60
 pygame.init()
 
 pygame.display.set_caption("Brick Breaker")
+title = BIG_FONT.render("NEAT algorithm learns to bounce ball!", False, (255, 255, 255))
+stats = ["Statistics:",
+             "Inputs: Board x position, Ball x position, Ball y position, Ball x speed, Ball y speed",
+             "Output: Board movement",
+             "Activation function: Relu",
+             "Population size: 80",
+             "",
+             "Fitness function depends on how long the board stays alive and how far the board is from the ball when it dies"
+             ]
+rendered_stats = []
+for line in stats:
+    rendered_stats.append(SMALL_FONT.render(line, False, (255,255,255)))
+continue_text = SMALL_FONT.render("Press ENTER to begin training", False, (255, 255, 255))
+
 
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 
@@ -48,16 +63,27 @@ def load_sprite(object_width, object_height, name, scale):
 
 def draw_all(screen, boards, balls, generation):
     screen.fill(BG_COLOR)
-    position = 35
+    position = 50
     score_label = BIG_FONT.render("Generation: " + str(generation) + "  Paddles Left: " + str(len(boards)), False, (255, 255, 255))
     screen.blit(score_label, (0, 0))
     for board, ball in zip(boards, balls):
         screen.blit(board.current_image, (board.rect.x, board.rect.y))
         screen.blit(ball.current_image, (ball.rect.x, ball.rect.y))
         pygame.draw.line(screen, (255, 0, 0), (board.rect.centerx, board.rect.bottom-30), (ball.rect.centerx, ball.rect.y +16), 1)
-        score_label = SMALL_FONT.render("ID: " + str(board.iden) + "   Fitness: " + str(round(board.SCORE)), False, (255, 255, 255))
-        screen.blit(score_label, (0, position))
-        position += 20
+        if len(boards) < 25:
+            score_label = SMALL_FONT.render("ID: " + str(board.iden) + "   Fitness: " + str(round(board.SCORE)), False, (255, 255, 255))
+            screen.blit(score_label, (0, position))
+            position += 20
+
+def ready_screen(screen):
+    screen.fill(BG_COLOR)
+    title_x = (WIDTH - title.get_width()) // 2
+    screen.blit(title, (title_x, HEIGHT/7))
+    for i, line in enumerate(rendered_stats):
+        screen.blit(line, ((WIDTH - line.get_width())//2, HEIGHT//4 + (i*25)))
+
+    screen.blit(continue_text, ((WIDTH-continue_text.get_width())//2, HEIGHT-50))
+    pygame.display.update()
 
 
 class Board(pygame.sprite.Sprite):
@@ -191,7 +217,10 @@ def board_movement(board):
         board.move(1)
 
 def eval_genomes(genomes, config):
+
     global generation
+    global opening_screen
+
     generation += 1
     clock = pygame.time.Clock()
 
@@ -210,7 +239,6 @@ def eval_genomes(genomes, config):
         iden += 1
 
     run = True
-
     while run:
         clock.tick(FPS)
 
@@ -219,64 +247,70 @@ def eval_genomes(genomes, config):
                 run = False
                 pygame.quit()
                 quit()
+            elif opening_screen is True:
+                ready_screen(screen)
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_RETURN:
+                        opening_screen = False
 
-        for i, board in enumerate(boards):
-            #distance = numpy.sqrt((balls[i].rect.centerx - boards[i].rect.centerx) ** 2 + (balls[i].rect.y - HEIGHT) ** 2)
-            #print(board.iden, ", distance: ", distance)
-            output = nets[i].activate((board.rect.centerx, balls[i].rect.centerx, balls[i].rect.centery, balls[i].x_vel, balls[i].y_vel))
-            #print(output)
-            if output[0] > 0.5:
-                board.move_left()
-            else:
-                board.move_right()
+        if opening_screen is False:
+            for i, board in enumerate(boards):
+                #distance = numpy.sqrt((balls[i].rect.centerx - boards[i].rect.centerx) ** 2 + (balls[i].rect.y - HEIGHT) ** 2)
+                #print(board.iden, ", distance: ", distance)
+                output = nets[i].activate((board.rect.centerx, balls[i].rect.centerx, balls[i].rect.centery, balls[i].x_vel, balls[i].y_vel))
+                #print(output)
+                if output[0] > 0.5:
+                    board.move_left()
+                else:
+                    board.move_right()
 
-        current_index = 0
-        count = 0
-        print(balls[0].x_vel)
-        #for board in boards:
-            #print(board.iden, " score: ", board.SCORE)
-        for count in range(len(boards)):
-            #print("count: ", count)
-            #print(current_index, ": ", boards[current_index].iden)
-            # board_movement(boards[i])
-            collided_object = collide(balls[current_index], boards[current_index])
-            if collided_object == boards[current_index]:
-                boards[current_index].hit = True
-                balls[current_index].rect.bottom = boards[current_index].rect.bottom-30
-                balls[current_index].y_vel *= -1
-                boards[current_index].SCORE += 50
-                ge[current_index].fitness += 50
-            else:
-                boards[current_index].hit = False
+            current_index = 0
+            count = 0
+            print(balls[0].x_vel)
+            #for board in boards:
+                #print(board.iden, " score: ", board.SCORE)
+            for count in range(len(boards)):
+                #print("count: ", count)
+                #print(current_index, ": ", boards[current_index].iden)
+                # board_movement(boards[i])
+                collided_object = collide(balls[current_index], boards[current_index])
+                if collided_object == boards[current_index]:
+                    boards[current_index].hit = True
+                    balls[current_index].rect.bottom = boards[current_index].rect.bottom-30
+                    balls[current_index].y_vel *= -1
+                    boards[current_index].SCORE += 50
+                    ge[current_index].fitness += 50
+                else:
+                    boards[current_index].hit = False
 
-            boards[current_index].loop()
-            ball_lost = balls[current_index].loop()
-            if ball_lost is True:
-                print(current_index, " DEAD")
-                print("before death fitness: ", ge[current_index].fitness)
-                distance = abs(boards[current_index].rect.centerx - balls[current_index].rect.centerx)
-                ge[current_index].fitness -= distance/15
-                print("after death fitness: ", ge[current_index].fitness)
-                print("------------------------------------------------")
-                balls.pop(current_index)
-                boards.pop(current_index)
-                nets.pop(current_index)
-                ge.pop(current_index)
-            else:
-                boards[current_index].SCORE += 0.1
-                ge[current_index].fitness += 0.1
-                current_index += 1
+                boards[current_index].loop()
+                ball_lost = balls[current_index].loop()
+                if ball_lost is True:
+                    print(current_index, " DEAD")
+                    print("before death fitness: ", ge[current_index].fitness)
+                    distance = abs(boards[current_index].rect.centerx - balls[current_index].rect.centerx)
+                    ge[current_index].fitness -= distance/15
+                    print("after death fitness: ", ge[current_index].fitness)
+                    print("------------------------------------------------")
+                    balls.pop(current_index)
+                    boards.pop(current_index)
+                    nets.pop(current_index)
+                    ge.pop(current_index)
+                else:
+                    boards[current_index].SCORE += 0.1
+                    ge[current_index].fitness += 0.1
+                    current_index += 1
 
-            count += 1
+                count += 1
 
 
 
-        if len(boards) <= 0:
-            run = False
-            break
+            if len(boards) <= 0:
+                run = False
+                break
 
-        draw_all(screen, boards, balls, generation)
-        pygame.display.update()
+            draw_all(screen, boards, balls, generation)
+            pygame.display.update()
 
 
 def run_neat(config_file):
