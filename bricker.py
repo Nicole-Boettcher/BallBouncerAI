@@ -14,12 +14,14 @@ pygame.font.init()  # init font
 
 generation = 0
 opening_screen = True
-BIG_FONT = pygame.font.SysFont("comicsans", 40)
+review_screen = False
+
+BIG_FONT = pygame.font.SysFont("comicsans", 35)
 SMALL_FONT = pygame.font.SysFont("comicsans", 15)
 BG_COLOR = pygame.Color(80, 60, 70)
 
 WIDTH, HEIGHT = 900, 700
-FPS = 60
+FPS = 100
 
 # goal is to make brick breaker, have a user version and an AI version. The AI should work first and then be presentable
 # need a board to slide along the bottom, and a ball to bounce around the screen
@@ -40,6 +42,7 @@ rendered_stats = []
 for line in stats:
     rendered_stats.append(SMALL_FONT.render(line, False, (255,255,255)))
 continue_text = SMALL_FONT.render("Press ENTER to begin training", False, (255, 255, 255))
+enter_text = SMALL_FONT.render("Press ENTER to continue", False, (255, 255, 255))
 
 
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
@@ -64,7 +67,7 @@ def load_sprite(object_width, object_height, name, scale):
 def draw_all(screen, boards, balls, generation):
     screen.fill(BG_COLOR)
     position = 50
-    score_label = BIG_FONT.render("Generation: " + str(generation) + "  Paddles Left: " + str(len(boards)), False, (255, 255, 255))
+    score_label = BIG_FONT.render("Generation: " + str(generation) + "  Paddles Left: " + str(len(boards)) + "  Ball Speed: " + str(round(abs(balls[0].x_vel), 2)), False, (255, 255, 255))
     screen.blit(score_label, (0, 0))
     for board, ball in zip(boards, balls):
         screen.blit(board.current_image, (board.rect.x, board.rect.y))
@@ -85,6 +88,17 @@ def ready_screen(screen):
     screen.blit(continue_text, ((WIDTH-continue_text.get_width())//2, HEIGHT-50))
     pygame.display.update()
 
+def death_screen(screen, dead_boards, generation):
+    screen.fill(BG_COLOR)
+    top_5 = BIG_FONT.render("Top 5 boards from generation " + str(generation) + " statistics:", False, (255, 255, 255))
+    top_5_x = (WIDTH - top_5.get_width()) // 2
+    screen.blit(top_5, (top_5_x, HEIGHT/7))
+    for i, dead_board in enumerate(dead_boards):
+        text = SMALL_FONT.render("ID: " + str(dead_board.iden) + "    final fitness: " + str(round(dead_board.SCORE, 2)), False, (255, 255, 255))
+        screen.blit(text, ((WIDTH-text.get_width())//2, HEIGHT//4 + (i*25)))
+
+    screen.blit(enter_text, ((WIDTH-enter_text.get_width())//2, HEIGHT-50))
+    pygame.display.update()
 
 class Board(pygame.sprite.Sprite):
     ANIMATION_DELAY = 20
@@ -220,6 +234,9 @@ def eval_genomes(genomes, config):
 
     global generation
     global opening_screen
+    global review_screen
+
+    review_screen = False
 
     generation += 1
     clock = pygame.time.Clock()
@@ -227,6 +244,7 @@ def eval_genomes(genomes, config):
     nets = []
     ge = []
     boards = []
+    dead_boards = []
     balls = []
     iden = 1
     for _, g in genomes:
@@ -242,18 +260,26 @@ def eval_genomes(genomes, config):
     while run:
         clock.tick(FPS)
 
+        if opening_screen is True:
+            ready_screen(screen)
+        elif review_screen is True:
+            death_screen(screen, dead_boards, generation)
+
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 run = False
                 pygame.quit()
                 quit()
-            elif opening_screen is True:
-                ready_screen(screen)
-                if event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_RETURN:
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_RETURN:
+                    if opening_screen is True:
                         opening_screen = False
+                    if review_screen is True:
+                        review_screen = False
+                        run = False
+                        break
 
-        if opening_screen is False:
+        if opening_screen is False and review_screen is False:
             for i, board in enumerate(boards):
                 #distance = numpy.sqrt((balls[i].rect.centerx - boards[i].rect.centerx) ** 2 + (balls[i].rect.y - HEIGHT) ** 2)
                 #print(board.iden, ", distance: ", distance)
@@ -265,8 +291,6 @@ def eval_genomes(genomes, config):
                     board.move_right()
 
             current_index = 0
-            count = 0
-            print(balls[0].x_vel)
             #for board in boards:
                 #print(board.iden, " score: ", board.SCORE)
             for count in range(len(boards)):
@@ -279,38 +303,35 @@ def eval_genomes(genomes, config):
                     balls[current_index].rect.bottom = boards[current_index].rect.bottom-30
                     balls[current_index].y_vel *= -1
                     boards[current_index].SCORE += 50
-                    ge[current_index].fitness += 50
+                    ge[current_index].fitness = boards[current_index].SCORE
                 else:
                     boards[current_index].hit = False
 
                 boards[current_index].loop()
                 ball_lost = balls[current_index].loop()
                 if ball_lost is True:
-                    print(current_index, " DEAD")
-                    print("before death fitness: ", ge[current_index].fitness)
                     distance = abs(boards[current_index].rect.centerx - balls[current_index].rect.centerx)
-                    ge[current_index].fitness -= distance/15
-                    print("after death fitness: ", ge[current_index].fitness)
-                    print("------------------------------------------------")
+                    boards[current_index].SCORE -= distance/15
+                    ge[current_index].fitness = boards[current_index].SCORE
                     balls.pop(current_index)
-                    boards.pop(current_index)
+                    dead_board = boards.pop(current_index)
                     nets.pop(current_index)
                     ge.pop(current_index)
+
+                    if len(boards) < 5:
+                        dead_boards.append(dead_board)
                 else:
                     boards[current_index].SCORE += 0.1
-                    ge[current_index].fitness += 0.1
+                    ge[current_index].fitness = boards[current_index].SCORE
                     current_index += 1
 
                 count += 1
 
-
-
             if len(boards) <= 0:
-                run = False
-                break
-
-            draw_all(screen, boards, balls, generation)
-            pygame.display.update()
+                review_screen = True
+            else:
+                draw_all(screen, boards, balls, generation)
+                pygame.display.update()
 
 
 def run_neat(config_file):
