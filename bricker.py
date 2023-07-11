@@ -21,7 +21,7 @@ SMALL_FONT = pygame.font.SysFont("comicsans", 15)
 BG_COLOR = pygame.Color(80, 60, 70)
 
 WIDTH, HEIGHT = 900, 700
-FPS = 100
+FPS = 120
 
 # goal is to make brick breaker, have a user version and an AI version. The AI should work first and then be presentable
 # need a board to slide along the bottom, and a ball to bounce around the screen
@@ -90,7 +90,7 @@ def ready_screen(screen):
 
 def death_screen(screen, dead_boards, generation):
     screen.fill(BG_COLOR)
-    top_5 = BIG_FONT.render("Top 5 boards from generation " + str(generation) + " statistics:", False, (255, 255, 255))
+    top_5 = BIG_FONT.render("Top 5 boards from generation " + str(generation) + ":", False, (255, 255, 255))
     top_5_x = (WIDTH - top_5.get_width()) // 2
     screen.blit(top_5, (top_5_x, HEIGHT/7))
     for i, dead_board in enumerate(dead_boards):
@@ -345,6 +345,7 @@ def run_neat(config_file):
     p.add_reporter(stats)
 
     winner = p.run(eval_genomes, config)
+
 
 if __name__ == "__main__":
     #main(window)  # so it only runs when run directly , not if imported?
